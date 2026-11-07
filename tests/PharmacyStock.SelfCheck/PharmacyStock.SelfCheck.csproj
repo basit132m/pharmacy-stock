@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Runs the engine end to end against a throwaway database and prints a pass/fail
+    report. Cross-platform on purpose: it checks the rules that matter (alert state
+    machine, hysteresis, buying list, failure handling) without needing Windows.
+
+    Run it from the repository root with the dotnet run command, pointing at
+    this project folder. build/build-windows.sh runs it before every build.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PharmacyStock.SelfCheck</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PharmacyStock.Core\PharmacyStock.Core.csproj" />
+  </ItemGroup>
+
+</Project>

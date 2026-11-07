@@ -34,9 +34,9 @@ public sealed class AppSettings
     /// <summary>Folder watched for a stock export when DataSource is "csv".</summary>
     public string CsvPath { get; set; } = "";
 
-    /// <summary>Port the local web server listens on.</summary>
-    public int Port { get; set; } = 8420;
+    /// <summary>Shrink to the notification area instead of closing when the X is pressed.</summary>
+    public bool MinimiseToTray { get; set; } = true;
 
-    /// <summary>True = other PCs and phones on the shop network can open the board.</summary>
-    public bool AllowLan { get; set; } = true;
+    /// <summary>Start the program automatically when Windows starts.</summary>
+    public bool StartWithWindows { get; set; } = false;
 }

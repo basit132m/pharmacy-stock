@@ -1,4 +1,5 @@
 using PharmacyStock.Data;
+using PharmacyStock.Diagnostics;
 using PharmacyStock.Models;
 using PharmacyStock.Providers;
 
@@ -51,14 +52,12 @@ public sealed class StockService
 {
     private readonly Store _store;
     private readonly SettingsService _settings;
-    private readonly ILogger<StockService> _log;
     private volatile Snapshot _snapshot = Snapshot.Empty;
 
-    public StockService(Store store, SettingsService settings, ILogger<StockService> log)
+    public StockService(Store store, SettingsService settings)
     {
         _store = store;
         _settings = settings;
-        _log = log;
     }
 
     public Snapshot Current => _snapshot;
@@ -186,7 +185,7 @@ public sealed class StockService
         if (events.Count > 0)
         {
             _store.AddAlertEvents(events);
-            _log.LogInformation("Shelf-level alerts raised: {Count}", events.Count);
+            Log.Info($"Shelf-level alerts raised: {events.Count}");
         }
     }
 

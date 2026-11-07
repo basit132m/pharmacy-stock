@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# Builds the Windows program: ONE .exe file, nothing to install.
+# Builds the Windows desktop program: ONE .exe file, nothing to install.
 #
-# The result is self-contained - the .NET runtime, the web server, the database
-# engine and the whole user interface are all inside that single file. Copy it to
-# any 64-bit Windows PC and double-click it.
+# The result is self-contained - the .NET runtime, the database engine and the whole
+# user interface are inside that single file. Copy it to any 64-bit Windows PC and
+# double-click it.
 #
 # Usage:  ./build/build-windows.sh
 # Output: dist/TenPercentStockManager.exe
@@ -12,13 +12,17 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT="$ROOT/src/PharmacyStock.App/PharmacyStock.App.csproj"
+PROJECT="$ROOT/src/PharmacyStock.Desktop/PharmacyStock.Desktop.csproj"
 OUT="$ROOT/dist"
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 
-echo "Building Windows executable..."
+echo "Checking the engine before building..."
+dotnet run --project "$ROOT/tests/PharmacyStock.SelfCheck" -c Release
+
+echo
+echo "Building the Windows program..."
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
@@ -30,11 +34,10 @@ dotnet publish "$PROJECT" \
   -p:IncludeNativeLibrariesForSelfExtract=true \
   -p:EnableCompressionInSingleFile=true \
   -p:DebugType=none \
-  -p:GenerateDocumentationFile=false \
   --output "$OUT"
 
 # Nothing but the single .exe should be handed to the pharmacy.
-rm -f "$OUT"/*.pdb "$OUT"/web.config
+find "$OUT" -type f ! -name 'TenPercentStockManager.exe' -delete
 
 EXE="$OUT/TenPercentStockManager.exe"
 if [[ ! -f "$EXE" ]]; then
@@ -42,10 +45,10 @@ if [[ ! -f "$EXE" ]]; then
   exit 1
 fi
 
-SIZE="$(du -h "$EXE" | cut -f1)"
 echo
 echo "Done."
 echo "  File: $EXE"
-echo "  Size: $SIZE"
+echo "  Size: $(du -h "$EXE" | cut -f1)"
+echo "  Type: $(file -b "$EXE")"
 echo
 echo "Copy that single file to the Windows PC and double-click it."

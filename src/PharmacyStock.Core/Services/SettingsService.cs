@@ -37,8 +37,8 @@ public sealed class SettingsService
         settings.SoundAlerts = Bool("soundAlerts", settings.SoundAlerts);
         settings.DataSource = Text("dataSource", settings.DataSource);
         settings.CsvPath = Text("csvPath", settings.CsvPath);
-        settings.Port = Math.Clamp(Int("port", settings.Port), 1024, 65535);
-        settings.AllowLan = Bool("allowLan", settings.AllowLan);
+        settings.MinimiseToTray = Bool("minimiseToTray", settings.MinimiseToTray);
+        settings.StartWithWindows = Bool("startWithWindows", settings.StartWithWindows);
 
         return settings;
     }
@@ -56,8 +56,8 @@ public sealed class SettingsService
             ["soundAlerts"] = incoming.SoundAlerts ? "1" : "0",
             ["dataSource"] = incoming.DataSource is "demo" or "csv" or "seasoft" ? incoming.DataSource : "demo",
             ["csvPath"] = incoming.CsvPath ?? "",
-            ["port"] = Math.Clamp(incoming.Port, 1024, 65535).ToString(CultureInfo.InvariantCulture),
-            ["allowLan"] = incoming.AllowLan ? "1" : "0",
+            ["minimiseToTray"] = incoming.MinimiseToTray ? "1" : "0",
+            ["startWithWindows"] = incoming.StartWithWindows ? "1" : "0",
         };
 
         _store.SetSettings(values);

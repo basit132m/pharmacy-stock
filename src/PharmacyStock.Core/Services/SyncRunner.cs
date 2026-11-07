@@ -1,4 +1,5 @@
 using PharmacyStock.Data;
+using PharmacyStock.Diagnostics;
 using PharmacyStock.Providers;
 
 namespace PharmacyStock.Services;
@@ -12,15 +13,13 @@ public sealed class SyncRunner
     private readonly Store _store;
     private readonly StockService _stock;
     private readonly ProviderFactory _factory;
-    private readonly ILogger<SyncRunner> _log;
     private readonly SemaphoreSlim _oneAtATime = new(1, 1);
 
-    public SyncRunner(Store store, StockService stock, ProviderFactory factory, ILogger<SyncRunner> log)
+    public SyncRunner(Store store, StockService stock, ProviderFactory factory)
     {
         _store = store;
         _stock = stock;
         _factory = factory;
-        _log = log;
     }
 
     public async Task<ProviderResult> RunOnceAsync(CancellationToken ct = default)
@@ -35,7 +34,7 @@ public sealed class SyncRunner
             _stock.Ingest(result, provider.Key);
             _store.FinishSync(logId, DateTime.UtcNow, result.Items.Count, result.Ok, result.Message);
 
-            if (!result.Ok) _log.LogWarning("Stock read failed: {Message}", result.Message);
+            if (!result.Ok) Log.Warn($"Stock read failed: {result.Message}");
             return result;
         }
         catch (OperationCanceledException)
@@ -45,7 +44,7 @@ public sealed class SyncRunner
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Stock read threw an exception");
+            Log.Error("Stock read threw an exception", ex);
             var failure = ProviderResult.Fail($"Could not read stock: {ex.Message}");
             _stock.Ingest(failure, provider.Key);
             _store.FinishSync(logId, DateTime.UtcNow, 0, false, failure.Message);

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PharmacyStock.Desktop</RootNamespace>
+    <AssemblyName>TenPercentStockManager</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+
+    <!--
+      Ubuntu's .NET SDK ships without the Windows Desktop SDK, so the usual
+      <UseWindowsForms> switch cannot be used. Referencing the WinForms framework
+      directly gives the same result and lets the Windows program be built here.
+    -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <!--
+      The single-file / self-contained switches are passed by build/build-windows.sh
+      rather than set here, so that a plain "dotnet build" on this machine still
+      compiles (it would otherwise try to find a Linux WinForms runtime pack).
+    -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <Version>2.0.0</Version>
+    <Product>Ten Percent Discount Pharmacy - Stock Manager</Product>
+    <Company>Ten Percent Discount Pharmacy</Company>
+    <AssemblyTitle>Stock Manager</AssemblyTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PharmacyStock.Core\PharmacyStock.Core.csproj" />
+  </ItemGroup>
+
+</Project>
