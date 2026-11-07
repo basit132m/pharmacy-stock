@@ -1,9 +1,13 @@
 # Build output
 bin/
 obj/
-dist/
 publish/
 *.user
+
+# Build folder is ignored, EXCEPT the finished program, which is published
+# here so it can be downloaded directly from GitHub.
+dist/*
+!dist/TenPercentStockManager.exe
 
 # Local data
 *.db
