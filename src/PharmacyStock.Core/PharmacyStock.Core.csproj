@@ -9,7 +9,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Our own database: shelf levels, buying list, alert history. -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+
+    <!--
+      Drivers for reading the pharmacy system's database. Which one SeaSoft uses is
+      not known yet, so all the realistic options are included and the user picks
+      one in the Connect to SeaSoft screen. All are read from, never written to.
+    -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
+    <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.1" />
+    <PackageReference Include="System.Data.OleDb" Version="8.0.1" />
+    <PackageReference Include="System.Data.Odbc" Version="8.0.1" />
+
+    <!-- Protects the saved database password with the Windows user's own key. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

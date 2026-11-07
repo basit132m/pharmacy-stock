@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using PharmacyStock.Data;
 using PharmacyStock.Models;
+using PharmacyStock.Providers.Seasoft;
 
 namespace PharmacyStock.Desktop.Ui;
 
@@ -21,6 +22,8 @@ internal sealed class SettingsPage : PageBase
     private readonly CheckBox _tray = Check("Keep running in the notification area when I close the window");
     private readonly CheckBox _startWithWindows = Check("Start automatically when Windows starts");
     private readonly Label _status = new();
+    private readonly Button _connectSeasoft = Theme.Primary("Connect to SeaSoft...", 200);
+    private readonly Label _seasoftStatus = new();
 
     /// <summary>Raised after Save, so the main window can re-apply the sync interval.</summary>
     public Action? SettingsSaved { get; set; }
@@ -29,10 +32,17 @@ internal sealed class SettingsPage : PageBase
     {
         _source.Items.Add("Demo data (sample medicines, not your real stock)");
         _source.Items.Add("CSV / Excel file exported from SeaSoft");
-        _source.Items.Add("SeaSoft database (not connected yet)");
+        _source.Items.Add("SeaSoft database (live stock)");
         _source.SelectedIndexChanged += (s, e) => UpdateCsvVisibility();
 
+        _connectSeasoft.Click += (s, e) => OpenSeasoftSetup();
+
         _browse.Click += (s, e) => BrowseCsv();
+
+        _seasoftStatus.Font = Theme.Base;
+        _seasoftStatus.AutoSize = true;
+        _seasoftStatus.MaximumSize = new Size(520, 0);
+        _seasoftStatus.ForeColor = Theme.TextDim;
 
         _status.Font = Theme.Base;
         _status.ForeColor = Theme.TextDim;
@@ -72,8 +82,13 @@ internal sealed class SettingsPage : PageBase
         AddHeading(form, "Where stock comes from");
         AddRow(form, "Pharmacy name", _pharmacyName, null);
         AddRow(form, "Stock source", _source,
-            "SeaSoft becomes available once we know which database it uses. Until then, demo data " +
-            "lets you set up all your shelf levels, and the CSV option reads a stock report exported from SeaSoft.");
+            "Demo data lets you set up your shelf levels before connecting anything. " +
+            "The CSV option reads a stock report exported from SeaSoft. " +
+            "The SeaSoft option reads your live stock straight from the database.");
+        AddRow(form, "", _connectSeasoft,
+            "Opens a three-step screen: connect to the database, look through the tables to find " +
+            "your medicines, and match up the columns. It only ever reads.");
+        AddRow(form, "", _seasoftStatus, null);
         AddRow(form, "CSV file from SeaSoft", csvRow,
             "Re-export over the same file and the program picks it up automatically.");
         AddRow(form, "Check stock every (seconds)", _syncSeconds,
@@ -220,6 +235,7 @@ internal sealed class SettingsPage : PageBase
         _startWithWindows.Checked = Startup.IsEnabled();
 
         UpdateCsvVisibility();
+        ShowSeasoftStatus();
         _status.Text = "Your data: " + AppPaths.DataFolder;
     }
 
@@ -228,6 +244,47 @@ internal sealed class SettingsPage : PageBase
         var isCsv = _source.SelectedIndex == 1;
         _csvPath.Enabled = isCsv;
         _browse.Enabled = isCsv;
+    }
+
+    private bool SeasoftReady() =>
+        Services.Settings.GetSeasoftConnection().IsConfigured &&
+        Services.Settings.GetSeasoftMapping().IsComplete;
+
+    private void ShowSeasoftStatus()
+    {
+        var connection = Services.Settings.GetSeasoftConnection();
+        var mapping = Services.Settings.GetSeasoftMapping();
+
+        if (!connection.IsConfigured)
+        {
+            _seasoftStatus.Text = "Not connected yet.";
+            _seasoftStatus.ForeColor = Theme.TextDim;
+        }
+        else if (!mapping.IsComplete)
+        {
+            _seasoftStatus.Text = connection.Describe() + " - connected, but the columns are not matched yet.";
+            _seasoftStatus.ForeColor = Theme.LowFg;
+        }
+        else
+        {
+            var what = mapping.CustomSql.Length > 0 ? "a custom query" : mapping.Table;
+            _seasoftStatus.Text = $"Connected: {connection.Describe()}, reading {what}.";
+            _seasoftStatus.ForeColor = Theme.OkFg;
+        }
+    }
+
+    private void OpenSeasoftSetup()
+    {
+        using var setup = new SeasoftSetupForm(Services.Settings);
+        var answer = setup.ShowDialog(this);
+
+        ShowSeasoftStatus();
+        if (answer != DialogResult.OK) return;
+
+        // The setup screen already proved it works, so switch over to it.
+        _source.SelectedIndex = 2;
+        UpdateCsvVisibility();
+        Save();
     }
 
     private void BrowseCsv()
@@ -242,16 +299,14 @@ internal sealed class SettingsPage : PageBase
 
     private void Save()
     {
-        if (_source.SelectedIndex == 2)
+        if (_source.SelectedIndex == 2 && !SeasoftReady())
         {
-            Problem("SeaSoft is not connected yet.\r\n\r\n" +
-                    "We first need to know which database SeaSoft uses. See the setup guide " +
-                    "(docs/CONNECTING-SEASOFT.md) for the two things to collect.");
-            _source.SelectedIndex = Services.Settings.Current.DataSource == "csv" ? 1 : 0;
+            Problem("SeaSoft is not set up yet.\r\n\r\n" +
+                    "Press \"Connect to SeaSoft...\" and work through the three steps first.");
             return;
         }
 
-        var source = _source.SelectedIndex == 1 ? "csv" : "demo";
+        var source = _source.SelectedIndex switch { 1 => "csv", 2 => "seasoft", _ => "demo" };
 
         if (source == "csv" && string.IsNullOrWhiteSpace(_csvPath.Text))
         {

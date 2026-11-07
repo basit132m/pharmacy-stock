@@ -1,6 +1,7 @@
 using PharmacyStock.Data;
 using PharmacyStock.Models;
 using PharmacyStock.Providers;
+using PharmacyStock.Providers.Seasoft;
 using PharmacyStock.Services;
 
 var dbFile = Path.Combine(Path.GetTempPath(), "coretest-" + Guid.NewGuid().ToString("N") + ".db");
@@ -125,6 +126,65 @@ Check("the read reports failure", !failed.Ok, failed.Message ?? "");
 Check("the medicine list is NOT wiped", stock.Current.Items.Count > 100,
     $"{stock.Current.Items.Count} medicines still shown");
 Check("the failure is flagged", !stock.Current.Ok);
+
+Console.WriteLine();
+Console.WriteLine("=== 8. SeaSoft reads can never write ===");
+// The promise the whole design rests on: nothing but a SELECT ever reaches SeaSoft.
+string[] mustRefuse =
+{
+    "UPDATE ITEMMASTER SET ITEM_NAME='x'",
+    "DELETE FROM ITEMMASTER",
+    "DROP TABLE ITEMMASTER",
+    "TRUNCATE TABLE ITEMMASTER",
+    "ALTER TABLE ITEMMASTER ADD COLUMN x INT",
+    "SELECT * FROM ITEMMASTER; DELETE FROM ITEMMASTER",
+    "SELECT * INTO backup FROM ITEMMASTER",
+    "EXEC sp_who",
+    "select * from ITEMMASTER -- harmless?\n; drop table ITEMMASTER",
+    "/* hide */ DELETE FROM ITEMMASTER",
+    "",
+};
+var refusedAll = mustRefuse.All(sql => !SqlGuard.IsReadOnly(sql));
+Check("every write, drop, second statement and hidden comment is refused", refusedAll);
+
+string[] mustAllow =
+{
+    "SELECT * FROM ITEMMASTER",
+    "select i.* from ITEMMASTER i left join STOCK_BALANCE s on s.ITEM_CODE = i.ITEM_CODE",
+    "WITH x AS (SELECT 1 AS a) SELECT * FROM x",
+    "SELECT * FROM ITEMMASTER WHERE ITEM_NAME = 'Update Syrup'",
+    "SELECT * FROM ITEMMASTER WHERE deleted_at IS NULL",
+    "SELECT * FROM ITEMMASTER;",
+};
+var allowedAll = mustAllow.All(SqlGuard.IsReadOnly);
+Check("ordinary reads are allowed, including awkward medicine names", allowedAll);
+
+Console.WriteLine();
+Console.WriteLine("=== 9. Guessing SeaSoft column names ===");
+var guessed = SeasoftMapping.Guess("VW_STOCK_IN_HAND", new[]
+{
+    "ITEM_CODE", "ITEM_NAME", "GENERIC_NAME", "COMPANY_NAME", "PACK_UNIT", "PACK_SIZE",
+    "RETAIL_PRICE", "BARCODE", "SUPPLIER_NAME", "CLOSING_BALANCE", "LAST_SALE_DATE",
+    "QTY_SOLD_30", "QTY_SOLD_90", "NEAREST_EXPIRY",
+});
+Check("item code found", guessed.ItemCode == "ITEM_CODE", guessed.ItemCode);
+Check("medicine name found", guessed.Name == "ITEM_NAME", guessed.Name);
+Check("stock quantity found", guessed.Qty == "CLOSING_BALANCE", guessed.Qty);
+Check("pack size found", guessed.UnitsPerPack == "PACK_SIZE", guessed.UnitsPerPack);
+Check("mapping is usable", guessed.IsComplete, guessed.WhatIsMissing());
+
+var sparse = SeasoftMapping.Guess("PRODUCTS", new[] { "Code", "Description", "Stock", "Price" });
+Check("a plainer schema is also understood",
+    sparse.ItemCode == "Code" && sparse.Name == "Description" && sparse.Qty == "Stock",
+    $"{sparse.ItemCode}/{sparse.Name}/{sparse.Qty}");
+
+Console.WriteLine();
+Console.WriteLine("=== 10. The saved database password is not left in plain text ===");
+var secret = "ReadOnly!2026";
+var hidden = Secrets.Protect(secret);
+Check("stored form does not contain the password", !hidden.Contains(secret, StringComparison.Ordinal), hidden[..Math.Min(18, hidden.Length)] + "...");
+Check("it can still be read back", Secrets.Unprotect(hidden) == secret);
+Check("an empty password stays empty", Secrets.Protect("") == "" && Secrets.Unprotect("") == "");
 
 try { File.Delete(dbFile); } catch { }
 

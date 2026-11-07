@@ -101,18 +101,28 @@ If the program ever misbehaves, `log.txt` sits in the same folder.
 
 ## Connecting SeaSoft
 
-Right now the program runs on **demo data** — sample medicines, so you can see it working
-and set up all your shelf levels before anything is connected. The shelf levels you set
-now are kept and will apply to your real medicines.
-
-There are two ways to connect the real thing:
+Out of the box the program runs on **demo data** — sample medicines, so you can set up
+your shelf levels before connecting anything. Those shelf levels are kept and carry over.
 
 ### Option A — read the SeaSoft database directly (best)
 
-Stock updates by itself within a minute of a purchase being entered in SeaSoft. This
-needs to know which database engine SeaSoft uses. See
-[`docs/CONNECTING-SEASOFT.md`](docs/CONNECTING-SEASOFT.md) for exactly what to collect
-and how.
+**Settings tab → "Connect to SeaSoft..."**, then three steps:
+
+1. **Connect** — pick the database type (SQL Server, MySQL, Firebird, Access or ODBC),
+   enter the server and read-only login, press **Test connection**.
+2. **Find your medicines** — click down the list of tables and see real rows from each
+   one. When you recognise your own medicines, that is the table. Likely-looking names
+   are listed first and internal tables are hidden, so you do not need the vendor to
+   describe the schema.
+3. **Match the columns** — filled in automatically from the column names. Check the top
+   three, preview, save.
+
+Stock then updates by itself within a minute of a purchase being entered in SeaSoft.
+
+Nothing is saved until the program has actually read your medicines, so you cannot end
+up switched over to a broken setup. Full walkthrough, including what to do when stock is
+calculated rather than stored:
+[`docs/CONNECTING-SEASOFT.md`](docs/CONNECTING-SEASOFT.md).
 
 ### Option B — a CSV exported from SeaSoft (works even if the vendor says no)
 
@@ -120,8 +130,18 @@ Export the stock report from SeaSoft to CSV, then on the **Settings** tab choose
 *CSV / Excel file* and browse to the file. Column headings are matched loosely, so most
 export formats work without editing. You refresh by re-exporting over the same file.
 
-This means the project cannot be blocked: if the SeaSoft vendor refuses database access,
-Option B still gives you the whole program.
+So the project cannot be blocked: if the vendor refuses database access, Option B still
+gives you the whole program.
+
+### How the read-only promise is enforced
+
+Every statement is inspected before it leaves the program. Writes, deletes, drops,
+`EXEC`, `SELECT INTO` and anything hidden after a semicolon are refused — including a
+query you type yourself in the Advanced box. Access files are opened with `Mode=Read` so
+SeaSoft is never locked out of its own file, and the saved database password is
+encrypted with your Windows login's own key.
+
+Asking the vendor for a read-only login on top of that is still the right thing to do.
 
 ---
 
@@ -130,12 +150,13 @@ Option B still gives you the whole program.
 .NET 8. Two projects plus a self-check:
 
 ```
-src/PharmacyStock.Core/        Engine - no UI, no web, cross-platform
+src/PharmacyStock.Core/        Engine - no UI, cross-platform
   Models/      Medicines, shelf levels, alerts, orders
   Providers/   Where stock is read from (IStockProvider)
-                 DemoStockProvider  - sample data
-                 CsvStockProvider   - a CSV/Excel export from SeaSoft
-                 (SeasoftProvider)  - added once the database engine is known
+                 DemoStockProvider     - sample data
+                 CsvStockProvider      - a CSV/Excel export from SeaSoft
+                 Seasoft/              - live database: connection, schema browser,
+                                         column mapping, SELECT-only guard
   Data/        SQLite store for OUR data only
   Services/    Sync, alert state machine, shelf-level advisor, buying list
   Diagnostics/ File logging
@@ -147,9 +168,13 @@ src/PharmacyStock.Desktop/     Windows UI (WinForms), built entirely in code
 tests/PharmacyStock.SelfCheck/ End-to-end check of the engine, prints pass/fail
 ```
 
-**Adding the SeaSoft connection is deliberately a one-file job.** Write a class
-implementing `IStockProvider`, then add one line to `ProviderFactory.Resolve()`. Nothing
-else changes.
+**Adding another stock source is a one-file job.** Write a class implementing
+`IStockProvider`, then add one line to `ProviderFactory.Resolve()`. Nothing else changes.
+
+The SeaSoft path was tested end to end against a real MariaDB server carrying a
+pharmacy-shaped schema (`ITEMMASTER` / `STOCK_BALANCE` / `VW_STOCK_IN_HAND`) and a
+read-only login: connect, browse tables, auto-guess the mapping, read live stock, and
+raise LOW / OUT alerts from it.
 
 ### Build
 

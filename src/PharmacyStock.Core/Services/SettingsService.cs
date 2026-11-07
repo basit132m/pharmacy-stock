@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Text.Json;
 using PharmacyStock.Data;
 using PharmacyStock.Models;
+using PharmacyStock.Providers.Seasoft;
 
 namespace PharmacyStock.Services;
 
@@ -9,6 +11,14 @@ public sealed class SettingsService
 {
     private readonly Store _store;
     private AppSettings _current;
+    private SeasoftConnection? _seasoftConnection;
+    private SeasoftMapping? _seasoftMapping;
+
+    private const string ConnectionKey = "seasoft.connection";
+    private const string MappingKey = "seasoft.mapping";
+    private const string PasswordKey = "seasoft.password";
+
+    private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
 
     public SettingsService(Store store)
     {
@@ -63,5 +73,77 @@ public sealed class SettingsService
         _store.SetSettings(values);
         _current = Load();
         return _current;
+    }
+
+    // ------------------------------------------------- SeaSoft connection
+
+    /// <summary>
+    /// How to reach the SeaSoft database. The password is held separately and encrypted,
+    /// so it never sits in plain text in the settings file.
+    /// </summary>
+    public SeasoftConnection GetSeasoftConnection()
+    {
+        if (_seasoftConnection is not null) return _seasoftConnection;
+
+        var raw = _store.GetSettingsRaw();
+        SeasoftConnection connection;
+
+        try
+        {
+            connection = raw.TryGetValue(ConnectionKey, out var text) && text.Length > 0
+                ? JsonSerializer.Deserialize<SeasoftConnection>(text) ?? new SeasoftConnection()
+                : new SeasoftConnection();
+        }
+        catch (JsonException)
+        {
+            connection = new SeasoftConnection();
+        }
+
+        var password = raw.TryGetValue(PasswordKey, out var stored) ? Secrets.Unprotect(stored) : "";
+        _seasoftConnection = connection with { Password = password };
+        return _seasoftConnection;
+    }
+
+    public void SaveSeasoftConnection(SeasoftConnection connection)
+    {
+        // The password goes in its own protected entry, not into the JSON.
+        var withoutPassword = connection with { Password = "" };
+
+        _store.SetSettings(new Dictionary<string, string>
+        {
+            [ConnectionKey] = JsonSerializer.Serialize(withoutPassword, Json),
+            [PasswordKey] = Secrets.Protect(connection.Password),
+        });
+
+        _seasoftConnection = connection;
+    }
+
+    public SeasoftMapping GetSeasoftMapping()
+    {
+        if (_seasoftMapping is not null) return _seasoftMapping;
+
+        var raw = _store.GetSettingsRaw();
+        try
+        {
+            _seasoftMapping = raw.TryGetValue(MappingKey, out var text) && text.Length > 0
+                ? JsonSerializer.Deserialize<SeasoftMapping>(text) ?? new SeasoftMapping()
+                : new SeasoftMapping();
+        }
+        catch (JsonException)
+        {
+            _seasoftMapping = new SeasoftMapping();
+        }
+
+        return _seasoftMapping;
+    }
+
+    public void SaveSeasoftMapping(SeasoftMapping mapping)
+    {
+        _store.SetSettings(new Dictionary<string, string>
+        {
+            [MappingKey] = JsonSerializer.Serialize(mapping, Json),
+        });
+
+        _seasoftMapping = mapping;
     }
 }
